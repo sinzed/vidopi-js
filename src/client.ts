@@ -44,10 +44,9 @@ export class VidopiClient {
       }
     }
 
-    const headers: Record<string, string> = {
-      'X-API-Key': this.apiKey,
-      ...(init.headers ?? {}),
-    };
+    // Merge caller-provided headers with our API key header in a type-safe way.
+    const headers = new Headers(init.headers ?? {});
+    headers.set('X-API-Key', this.apiKey);
 
     const requestInit: RequestInit = {
       ...init,
@@ -101,10 +100,30 @@ export class VidopiClient {
     const formData = new FormData();
     const name = fileName || 'video.mp4';
 
-    // The types for FormData.append differ between environments, so we relax typing a bit here.
+    // Normalize various binary input types into a Blob/File that FormData in Node.js understands.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const formFile: any = file;
-    formData.append('file', formFile, (formFile && formFile.name) || name);
+    let formFile: any = file;
+
+    // In browsers, Blob/File already work.
+    if (typeof Blob !== 'undefined' && file instanceof Blob) {
+      formFile = file;
+    }
+    // In Node.js, Buffer / ArrayBuffer / Uint8Array need to be wrapped into a Blob.
+    else if (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      typeof Buffer !== 'undefined' &&
+      file instanceof (Buffer as any)
+    ) {
+      // Node.js Buffer → Blob
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formFile = new Blob([file as any], { type: contentType });
+    } else if (file instanceof Uint8Array || file instanceof ArrayBuffer) {
+      // ArrayBuffer / Uint8Array → Blob
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formFile = new Blob([file as any], { type: contentType });
+    }
+
+    formData.append('file', formFile, (formFile && (formFile as any).name) || name);
 
     const response = await this.request<UploadVideoResponse>('/upload-video/', {
       method: 'POST',
@@ -205,5 +224,6 @@ export class VidopiClient {
     });
   }
 }
+
 
 

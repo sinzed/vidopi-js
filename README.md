@@ -79,3 +79,4 @@ All request/response types are exported from the root entrypoint.
 
 
 # vidopi-js
+
